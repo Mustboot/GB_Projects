@@ -21,17 +21,18 @@ user_surname = input('И фамилию: ')
 user_age = int(input('А также возраст: '))
 user_weight = int(input('И вес: '))
 
-# Пациент в хорошем состоянии, если ему до 30 лет и вес от 50 и до 120 кг, (условие сработает на любой возраст, главное вес!)
-if user_weight >= 50 and user_weight <= 120:
-    print(user_name + ' ' + user_surname + ', ' + str(user_age) + ' лет, ' + str(user_weight) + ' кг - хорошее состояние')
+# Пациент в хорошем состоянии, если ему до 30 лет и вес от 50 и до 120 кг,
+# (условие сработает на любой возраст, главное вес!)
+if user_weight > 50 and user_weight < 120:
+    print(user_name + ' ' + user_surname + ', ' + str(user_age) + ' лет, '
+          + str(user_weight) + ' кг - хорошее состояние')
 
 # Пациенту требуется заняться собой, если ему более 30 и вес меньше 50 или больше 120 кг
-elif user_age >= 30 and user_age < 40 and (user_weight < 50 or user_weight > 120):
-    print(user_name + ' ' + user_surname + ', ' + str(user_age) + ' лет, ' + str(user_weight) + ' кг - следует заняться собой')
+elif user_age >= 30 and user_age < 40 and (user_weight <= 50 or user_weight >= 120):
+    print(user_name + ' ' + user_surname + ', ' + str(user_age) + ' лет, '
+          + str(user_weight) + ' кг - следует заняться собой')
 
 # Пациенту требуется врачебный осмотр, если ему более 40 и вес менее 50 или больше 120 кг.
-elif user_age >= 40 and (user_weight < 50 or user_weight > 120):
-    print(user_name + ' ' + user_surname + ', ' + str(user_age) + ' лет, ' + str(user_weight) + ' кг - требуется врачебный осмотр')
-
-
-
+elif user_age >= 40 and (user_weight <= 50 or user_weight >= 120):
+    print(user_name + ' ' + user_surname + ', ' + str(user_age) + ' лет, '
+          + str(user_weight) + ' кг - требуется врачебный осмотр')
