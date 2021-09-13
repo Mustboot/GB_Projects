@@ -7,7 +7,9 @@ from random import choice
 
 
 def rand_element(raw_data):
-    return choice(raw_data)
+    if raw_data:
+        return choice(raw_data)
 
 if __name__ == '__main__':
     print(rand_element([1, 2, 3, 4]))
+    print(rand_element([]))
