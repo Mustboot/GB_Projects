@@ -19,6 +19,7 @@ my_favourite_group = {'name': 'Г.М.О.', 'tracks': ['Последний мес
                       'Albums': [{'name': 'Делать панк-рок', 'year': 2016},
                                  {'name': 'Шапито', 'year': 2014}]}
 
+print(my_favourite_group)
 print(json.dumps(my_favourite_group))
 print(pickle.dumps(my_favourite_group))
 

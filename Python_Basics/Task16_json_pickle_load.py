@@ -11,6 +11,6 @@ with open('group.json', 'r', encoding='utf-8') as jf:
 print(my_favorite_group_j)
 
 with open('group.pickle', 'rb') as pf:
-    my_favorite_group_p = pickle.loads(pf.readline())
+    my_favorite_group_p = pickle.load(pf)
 
 print(my_favorite_group_p)
