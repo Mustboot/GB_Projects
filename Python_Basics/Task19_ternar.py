@@ -15,10 +15,8 @@ from random import randint
 
 
 def conditional_sqrt(list_of_rnd_number):
-    processed_list = []
-    for number in list_of_rnd_number:
-        processed_list.append(sqrt(number) if number > 0 else number)
-    return processed_list
+    return [round(sqrt(number), 2) for number in list_of_rnd_number if number > 0]
+
 
 if __name__ == '__main__':
     initial_list = [randint(-100, 100) for i in range(20)]
