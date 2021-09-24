@@ -140,10 +140,8 @@ elif task_number == 3:  # =============== ЗАДАНИЕ №3 (начало) ===
 
     user_percent = int(input('Введите процент от 0 до 100: '))
     d_ending = user_percent % 10
-    print(str(user_percent) + ' процент' +
-          ('а' if d_ending >= 2 and d_ending <= 4 else 'ов' if d_ending > 4 or d_ending == 0 else ''))
 
-    if d_ending == 0 or d_ending > 4:
+    if d_ending == 0 or d_ending > 4 or user_percent in [11, 12, 13, 14]:
         t_ending = 'ов'
     elif d_ending >= 2 and d_ending <= 4:
         t_ending = 'а'
