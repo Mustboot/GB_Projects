@@ -1,12 +1,12 @@
 # Создать список, состоящий из кубов нечётных чисел от 1 до 1000 (куб X - третья степень числа X):
 
 # создаем список с помощью генератора:
-raw_list_of_numbers = [element ** 3 for element in range(1, 1000) if element % 2]
+raw_list_of_numbers = [element ** 3 for element in range(1, 1001) if element % 2]
 
 # или создаем список с помощью цикла:
 element_for_list = 1
 raw_list_of_numbers.clear()
-while element_for_list <= 1000:
+while element_for_list <= 999:
     if element_for_list % 2:
         raw_list_of_numbers.append(element_for_list ** 3)
     element_for_list += 1
@@ -33,6 +33,7 @@ for element in raw_list_of_numbers:
         temp_element //= 10
     # ... и суммируем подходящие числа.
     if not sum_of_digits % 7:
+        print(sum_of_digits)
         sum_of_numbers_div7 += element
 
 # Выводим результат в терминал
@@ -61,6 +62,7 @@ for element in raw_list_of_numbers_2:
         temp_element //= 10
     # ... и суммируем подходящие числа.
     if not sum_of_digits % 7:
+        print(sum_of_digits)
         sum_of_numbers_div7 += element
 
 # Выводим результат в терминал
@@ -77,6 +79,7 @@ sum_of_numbers_div7 = 0
 # увеличиваем элементы на 17 не создавая второй список
 raw_list_of_numbers = [element + 17 for element in raw_list_of_numbers]
 
+
 # вновь перебираем все элементы списка, ...
 for element in raw_list_of_numbers:
     # ... производим проверку условия (сумма цифр делится нацело на 7), используя только арифметические операции...
@@ -86,7 +89,9 @@ for element in raw_list_of_numbers:
         sum_of_digits += temp_element % 10
         temp_element //= 10
     # ... и суммируем подходящие числа.
+
     if not sum_of_digits % 7:
+        print(sum_of_digits)
         sum_of_numbers_div7 += element
 
 # Выводим результат в терминал
