@@ -33,7 +33,6 @@ for element in raw_list_of_numbers:
         temp_element //= 10
     # ... и суммируем подходящие числа.
     if not sum_of_digits % 7:
-        print(sum_of_digits)
         sum_of_numbers_div7 += element
 
 # Выводим результат в терминал
@@ -62,7 +61,6 @@ for element in raw_list_of_numbers_2:
         temp_element //= 10
     # ... и суммируем подходящие числа.
     if not sum_of_digits % 7:
-        print(sum_of_digits)
         sum_of_numbers_div7 += element
 
 # Выводим результат в терминал
@@ -91,7 +89,6 @@ for element in raw_list_of_numbers:
     # ... и суммируем подходящие числа.
 
     if not sum_of_digits % 7:
-        print(sum_of_digits)
         sum_of_numbers_div7 += element
 
 # Выводим результат в терминал
