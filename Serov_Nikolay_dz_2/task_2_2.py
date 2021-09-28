@@ -26,8 +26,7 @@ for element in raw_list:
     if element.isalpha():
         formatted_list.append(element)
     else:
-        formatted_list.extend(['"', f'{int(element):+03d}' if "+" in element or "-" in element
-                              else f'{int(element):02d}', '"'])
+        formatted_list.extend(['"', f'{int(element):+03d}' if "+" in element or "-" in element else f'{int(element):02d}', '"'])
 
 print(raw_list)
 
