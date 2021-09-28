@@ -1,3 +1,5 @@
+#! /usr/bin/python3
+
 # Дан список:
 # ['в', '5', 'часов', '17', 'минут', 'температура', 'воздуха', 'была', '+5', 'градусов']
 #
@@ -16,13 +18,19 @@
 # к его реализации позже. Главное: дополнить числа до двух разрядов нулём!
 
 raw_list = ['в', '5', 'часов', '17', 'минут', 'температура', 'воздуха', 'была', '+5', 'градусов']
+
 formatted_list = []
+
+
 for element in raw_list:
     if element.isalpha():
         formatted_list.append(element)
     else:
-        formatted_list.extend(['"', f'{int(element):+03d}' if "+" in element or "-" in element else f'{int(element):02d}', '"'])
+        formatted_list.extend(['"', f'{int(element):+03d}' if "+" in element or "-" in element
+                              else f'{int(element):02d}', '"'])
+
+print(raw_list)
 
 print(formatted_list)
+
 print(''.join([' ' + element + ' ' if element.isalpha() else element for element in formatted_list]))
-zip
