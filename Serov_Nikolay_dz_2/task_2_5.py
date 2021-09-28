@@ -16,4 +16,4 @@ import random
 
 import randint, sample,  from random
 
-random.choice()
+price_list =
