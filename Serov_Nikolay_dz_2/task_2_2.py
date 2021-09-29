@@ -3,8 +3,8 @@
 # Дан список:
 # ['в', '5', 'часов', '17', 'минут', 'температура', 'воздуха', 'была', '+5', 'градусов']
 #
-# Необходимо его обработать — обособить каждое целое число (вещественные не трогаем)
-# кавычками (добавить кавычку до и кавычку после элемента списка, являющегося числом)
+# Необходимо его обработать — обособить каждое целое число (вещественные не трогаем) кавычками
+# (добавить кавычку до и кавычку после элемента списка, являющегося числом)
 # и дополнить нулём до двух целочисленных разрядов:
 # ['в', '"', '05', '"', 'часов', '"', '17', '"', 'минут', 'температура',
 # 'воздуха', 'была', '"', '+05', '"', 'градусов']
@@ -18,18 +18,31 @@
 # к его реализации позже. Главное: дополнить числа до двух разрядов нулём!
 
 raw_list = ['в', '5', 'часов', '17', 'минут', 'температура', 'воздуха', 'была', '+5', 'градусов']
-
 formatted_list = []
 
-
+# Для поиска цифр в строках использовал метод isalpha() т.е. все что не текст считал цифрами.
+# Сделал так для того чтобы цифра с плюсом тоже попадала в фильтр.
+# Далее добавляем кавычку до и после цифр,
+# а так же дополняем нулями до 2х разрядов используя форамтирование строки. Знак +/- сохраняем где нужно.
 for element in raw_list:
-    if element.isalpha():
-        formatted_list.append(element)
-    else:
-        formatted_list.extend(['"', f'{int(element):+03d}' if "+" in element or "-" in element else f'{int(element):02d}', '"'])
+	if element.isalpha():
+		formatted_list.append(element)
+	else:
+		formatted_list.extend(['"', f'{int(element):+03d}' if "+" in element or "-" in element else f'{int(element):02d}', '"'])
 
 print(raw_list)
-
 print(formatted_list)
 
-print(''.join([' ' + element + ' ' if element.isalpha() else element for element in formatted_list]))
+formatted_list.clear()
+
+# Делаем тоже, что и выше, однако немного подругому формируем
+# и выводим строку для соответствия требуемому формату
+for element in raw_list:
+	if element.isalpha():
+		formatted_list.append(element)
+	else:
+		formatted_list.extend([f'"{int(element):+03d}"' if "+" in element or "-" in element else f'"{int(element):02d}"'])
+	
+print(' '.join(formatted_list))
+
+
