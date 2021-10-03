@@ -10,7 +10,7 @@ print("Начальный список: ", raw_list, end="\n\n")
 
 # Выводим  строку в требууемом формате, не создавая новый список и не изменяя начальный:
 print(' '.join(element if element.isalpha() else f'"{int(element):+03d}"'
-               if "+" in element or "-" in element else f'"{int(element):02d}"'
+               if element[0] in "+-" else f'"{int(element):02d}"'
                for element in raw_list), end="\n\n")
 
 # Проверяем, что список не изменился

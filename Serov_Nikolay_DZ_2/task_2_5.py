@@ -34,8 +34,8 @@ for element in price_list:
 
 print('\n')
 
-print(f'{sorted(price_list)} - цены, отсортированные по возрастанию, не создавая новый список')
-print(f'{price_list} - доказательство, что объект списка после сортировки остался тот же', end='\n\n')
+print(f'{sorted(price_list)} id:{id(price_list)} - цены, отсортированные по возрастанию, не создавая новый список')
+print(f'{price_list} id:{id(price_list)} - доказательство, что объект списка после сортировки остался тот же', end='\n\n')
 
 # Создаем новый список, содержащий те же цены, но отсортированные по убыванию.
 price_list_2 = price_list.copy()
@@ -43,4 +43,4 @@ price_list_2.sort(reverse=True)
 print(price_list_2, end='\n\n')
 
 # Выводим цены пяти самых дорогих товаров по возрастанию, написав минимум кода...
-print(sorted(price_list)[::-1][:5][::-1])
+print(sorted(price_list)[-5:])
