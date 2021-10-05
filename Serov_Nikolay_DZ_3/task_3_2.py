@@ -21,7 +21,8 @@ def num_translate_adv(num_to_trans):
                   "eight": "восемь", "nine": "девять", "ten": "десять"}
 
     if num_to_trans.lower() in trans_dict:
-        if num_to_trans.title():
+        # исправил неточность - был не неправильный метод использован - .title() вместо .istitle()
+        if num_to_trans.istitle():
             return trans_dict[num_to_trans.lower()].capitalize()
         else:
             return trans_dict[num_to_trans.lower()]
