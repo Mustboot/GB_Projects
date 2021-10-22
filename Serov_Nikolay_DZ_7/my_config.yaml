@@ -1,0 +1,6 @@
+base_dir my_project
+settings __init__.py,dev.py,prod.py
+mainapp __init__.py,models.py,views.py
+mainapp\templates\mainapp base.html,index.html
+authapp __init__.py,models.py,views.py
+authapp\template\authapp base.html,index.html
