@@ -41,8 +41,8 @@ if __name__ == '__main__':
     coat_1 = Coat(12)
     suit_1 = Suit(180)
 
-    print(f'Для пошива {coat_1.title} размера {coat_1.size}'
+    print(f'Для пошива {coat_1.title} размера {coat_1.size} '
           f'нужно следующее кол-во ткани: {coat_1.fabric_quantity():.2f}')
 
-    print(f'Для пошива {suit_1.title} на рост {suit_1.height}'
+    print(f'Для пошива {suit_1.title} на рост {suit_1.height} '
           f'нужно следующее кол-во ткани: {suit_1.fabric_quantity:.2f}')
