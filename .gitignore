@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local editor / CLI config (machine-specific)
+.qwen/
+.vscode/
+
+# Parsers and local bots - personal tools with browser profile and chat data (keep local only)
+Max_parser/
+Yandex_parser/
+My_TelegramBots/
+
+# Secrets
+.env
+*.env
+
+# Real drilling data (keep local only)
+*.accdb
+Analyzer_FA-tool/data_import/
+Analyzer_FA-tool/_preview/
+Analyzer_FA-tool/*.xlsm
+Analyzer_FA-tool/*.exe
+
+# Large / copyrighted files
+MyTelegramBots_GitHub/files/*.pdf

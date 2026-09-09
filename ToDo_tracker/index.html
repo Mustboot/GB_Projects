@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow — трекер рабочих задач</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- ===== Сайдбар ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">☑️ TaskFlow</div>
+        <button id="btnNewTask" class="btn btn-primary btn-wide">＋ Новая задача</button>
+      </div>
+
+      <nav class="views" id="viewsNav">
+        <button class="view-item" data-view="inbox"><span class="view-ico">📥</span> Входящие <span class="view-count" data-count="inbox"></span></button>
+        <button class="view-item" data-view="today"><span class="view-ico">📅</span> Сегодня <span class="view-count" data-count="today"></span></button>
+        <button class="view-item" data-view="progress"><span class="view-ico">▶️</span> В работе <span class="view-count" data-count="progress"></span></button>
+        <button class="view-item" data-view="all"><span class="view-ico">🗂️</span> Все задачи <span class="view-count" data-count="all"></span></button>
+        <button class="view-item" data-view="done"><span class="view-ico">✅</span> Выполненные <span class="view-count" data-count="done"></span></button>
+      </nav>
+
+      <div class="folders-block">
+        <div class="folders-header">
+          <span class="folders-title">Проекты</span>
+          <button id="btnNewFolder" class="icon-btn" title="Создать папку">＋</button>
+        </div>
+        <div id="folderTree" class="folder-tree"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="stats-mini" id="statsMini"></div>
+        <button id="btnFiles" class="btn btn-ghost btn-wide">🗂 Файлы</button>
+        <button id="btnReports" class="btn btn-ghost btn-wide">📊 Отчёты</button>
+        <button id="btnAI" class="btn btn-ghost btn-wide">✨ AI DeepSeek</button>
+        <button id="btnJournal" class="btn btn-ghost btn-wide">📝 Журнал</button>
+        <button id="btnKb" class="btn btn-ghost btn-wide">📚 База знаний</button>
+        <button id="btnExport" class="btn btn-ghost btn-wide">💾 Экспорт JSON</button>
+        <button id="btnImport" class="btn btn-ghost btn-wide">📂 Импорт JSON</button>
+        <button id="btnSystem" class="btn btn-ghost btn-wide">⚙️ Система</button>
+        <button id="btnTheme" class="btn btn-ghost btn-wide">🌓 Тема</button>
+      </div>
+      <input type="file" id="importFile" accept=".json" class="hidden">
+    </aside>
+
+    <!-- ===== Основная область ===== -->
+    <main class="main">
+      <header class="topbar">
+        <div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input id="searchInput" type="text" placeholder="Поиск по названию, описанию, тегам…  ( / )">
+        </div>
+        <select id="sortSelect" class="select" title="Сортировка">
+          <option value="priority">По приоритету</option>
+          <option value="due">По сроку</option>
+          <option value="created">По дате создания</option>
+          <option value="updated">По дате обновления</option>
+          <option value="title">По названию</option>
+          <option value="folder">По проекту</option>
+          <option value="assignee">По ответственному</option>
+          <option value="team">По команде</option>
+          <option value="status">По статусу</option>
+        </select>
+        <button id="sortDirBtn" class="btn btn-ghost" title="Направление сортировки">⬇️</button>
+      </header>
+
+      <div class="filter-bar">
+        <div class="filter-chips" id="filterChips">
+          <button class="chip active" data-status="all">Все</button>
+          <button class="chip" data-status="todo">К выполнению</button>
+          <button class="chip" data-status="progress">В работе</button>
+          <button class="chip" data-status="done">Выполненные</button>
+        </div>
+        <div class="filter-selects">
+          <select id="teamFilter" class="select select-sm" title="Фильтр по команде">
+            <option value="all">Все команды</option>
+          </select>
+          <select id="assigneeFilter" class="select select-sm" title="Фильтр по ответственному">
+            <option value="all">Все ответственные</option>
+          </select>
+          <select id="priorityFilter" class="select select-sm" title="Фильтр по приоритету">
+            <option value="all">Все приоритеты</option>
+            <option value="high">Высокий</option>
+            <option value="medium">Средний</option>
+            <option value="low">Низкий</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="list-header">
+        <h2 id="viewTitle">Все задачи</h2>
+        <div class="list-tools">
+          <span id="listCount" class="list-count"></span>
+          <button id="btnClearDone" class="btn btn-ghost btn-sm">🗑 Очистить выполненные</button>
+        </div>
+      </div>
+
+      <div id="taskList" class="task-list"></div>
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-ico">🗒️</div>
+        <p>Здесь пока пусто</p>
+        <button class="btn btn-primary" onclick="App.newTask()">＋ Создать задачу</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== Модальное окно задачи ===== -->
+  <div class="modal-overlay hidden" id="taskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="taskModalTitle">Новая задача</h3>
+        <button class="icon-btn" data-close="taskModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span>Название *</span>
+          <input id="fTitle" type="text" placeholder="Что нужно сделать?">
+        </label>
+        <label class="field">
+          <span>Описание</span>
+          <textarea id="fDesc" rows="4" placeholder="Подробности, контекст, критерии готовности…"></textarea>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Папка</span>
+            <select id="fFolder"></select>
+          </label>
+          <label class="field">
+            <span>Статус</span>
+            <select id="fStatus">
+              <option value="todo">К выполнению</option>
+              <option value="progress">В работе</option>
+              <option value="done">Выполнено</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Срок</span>
+            <input id="fDueDate" type="date">
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Команда</span>
+            <select id="fTeam"></select>
+          </label>
+          <label class="field">
+            <span>Ответственный</span>
+            <select id="fAssignee"></select>
+          </label>
+        </div>
+        <div class="field">
+          <span>Приоритет</span>
+          <div class="segmented" id="fPriority">
+            <button type="button" data-val="low">🟢 Низкий</button>
+            <button type="button" data-val="medium">🟡 Средний</button>
+            <button type="button" data-val="high">🔴 Высокий</button>
+          </div>
+        </div>
+        <label class="field">
+          <span>Теги (через запятую)</span>
+          <input id="fTags" type="text" placeholder="отчёт, клиент X">
+        </label>
+
+        <div class="field">
+          <div class="field-title-row">
+            <span>Подзадачи</span>
+            <button id="btnAddSubtask" class="btn btn-ghost btn-sm">＋ Добавить</button>
+          </div>
+          <div id="subtaskList" class="subtask-list"></div>
+        </div>
+
+        <div class="field">
+          <div class="field-title-row">
+            <span>Ссылки и файлы</span>
+            <span class="field-actions">
+              <button id="btnAddLink" class="btn btn-ghost btn-sm">🔗 Ссылка</button>
+              <button id="btnAddFolderLink" class="btn btn-ghost btn-sm">📁 Папка</button>
+              <button id="btnPickFile" class="btn btn-ghost btn-sm">📎 Файл с диска</button>
+              <button id="btnPickLibraryFile" class="btn btn-ghost btn-sm">🗂 Из библиотеки</button>
+            </span>
+          </div>
+          <div id="linkList" class="link-list"></div>
+          <input type="file" id="taskFilePicker" multiple class="hidden">
+          <p class="hint">Чтобы файл открывался в родном приложении (Word, Excel…), добавьте его через «🔗 Ссылка» с путём к файлу, а папку — через «📁 Папка» (нужна однократная интеграция: ⚙️ Система). Файлы из библиотеки открываются во встроенном просмотрщике браузера.</p>
+        </div>
+
+        <div class="ai-row">
+          <button id="aiTaskSummarize" class="btn btn-ai btn-sm">✨ Суммаризировать описание</button>
+          <button id="aiTaskSubtasks" class="btn btn-ai btn-sm">🧩 Разбить на подзадачи</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnDeleteTask" class="btn btn-danger hidden">🗑 Удалить</button>
+        <button id="btnManageTeam" class="btn btn-ghost" title="Управление командами и сотрудниками">👥 Команда</button>
+        <span class="spacer"></span>
+        <button class="btn" data-close="taskModal">Отмена</button>
+        <button id="btnSaveTask" class="btn btn-primary">💾 Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно папки ===== -->
+  <div class="modal-overlay hidden" id="folderModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 id="folderModalTitle">Новая папка</h3>
+        <button class="icon-btn" data-close="folderModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span>Название *</span>
+          <input id="fFolderName" type="text" placeholder="Например: Проект «Альфа»">
+        </label>
+        <label class="field">
+          <span>Родительская папка</span>
+          <select id="fFolderParent"></select>
+        </label>
+        <div class="field">
+          <span>Цвет</span>
+          <div class="color-swatches" id="fFolderColor"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnDeleteFolder" class="btn btn-danger hidden">🗑 Удалить</button>
+        <span class="spacer"></span>
+        <button class="btn" data-close="folderModal">Отмена</button>
+        <button id="btnSaveFolder" class="btn btn-primary">💾 Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно отчётов ===== -->
+  <div class="modal-overlay hidden" id="reportModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>📊 Отчёты</h3>
+        <button class="icon-btn" data-close="reportModal">✕</button>
+      </div>
+      <div class="report-scope">
+        <span class="muted" style="font-size:12px">Отчёт по:</span>
+        <select id="reportTeamFilter" class="select select-sm" title="Фильтр по команде">
+          <option value="all">Все команды</option>
+        </select>
+        <select id="reportPersonFilter" class="select select-sm" title="Фильтр по сотруднику">
+          <option value="all">Все сотрудники</option>
+        </select>
+      </div>
+      <div class="tabs" id="reportTabs">
+        <button class="tab active" data-tab="summary">Сводка</button>
+        <button class="tab" data-tab="text">Текстовый отчёт</button>
+        <button class="tab" data-tab="ai">AI-отчёт</button>
+      </div>
+      <div class="modal-body">
+        <div class="tab-panel active" id="reportPanelSummary">
+          <div id="reportSummary"></div>
+        </div>
+        <div class="tab-panel" id="reportPanelText">
+          <div class="report-tools">
+            <button id="btnCopyReport" class="btn btn-ghost btn-sm">📋 Копировать</button>
+            <button id="btnDownloadReport" class="btn btn-ghost btn-sm">⬇️ Скачать .md</button>
+            <button id="btnDownloadReportHtml" class="btn btn-ghost btn-sm">🌐 Скачать .html</button>
+            <button id="btnPrintReport" class="btn btn-ghost btn-sm">🖨 Печать</button>
+          </div>
+          <pre id="reportText" class="report-text"></pre>
+        </div>
+        <div class="tab-panel" id="reportPanelAi">
+          <div class="ai-scope">
+            <label class="field">
+              <span>Какие задачи включить в отчёт</span>
+              <select id="aiReportScope">
+                <option value="all">Все задачи</option>
+                <option value="open">Открытые (не выполненные)</option>
+                <option value="done">Выполненные</option>
+                <option value="overdue">Просроченные</option>
+                <option value="folder">Из проекта…</option>
+                <option value="select">Выбрать вручную…</option>
+              </select>
+            </label>
+            <select id="aiReportFolder" class="select hidden" title="Проект"></select>
+            <span id="aiScopeCount" class="muted"></span>
+          </div>
+          <div id="aiReportPicker" class="ai-picker hidden"></div>
+          <div class="report-tools">
+            <button id="btnAiReport" class="btn btn-ai">✨ Сгенерировать AI-отчёт</button>
+            <button id="btnCopyAiReport" class="btn btn-ghost btn-sm hidden">📋 Копировать</button>
+            <button id="btnDownloadAiReport" class="btn btn-ghost btn-sm hidden">⬇️ Скачать .md</button>
+            <button id="btnDownloadAiReportHtml" class="btn btn-ghost btn-sm hidden">🌐 Скачать .html</button>
+          </div>
+          <div id="aiReportOutput" class="ai-output">
+            <p class="muted">AI проанализирует выбранные задачи и подготовит краткую сводку: итоги, приоритеты, риски и рекомендации.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно AI ===== -->
+  <div class="modal-overlay hidden" id="aiModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>✨ AI DeepSeek</h3>
+        <button class="icon-btn" data-close="aiModal">✕</button>
+      </div>
+      <div class="tabs" id="aiTabs">
+        <button class="tab active" data-tab="settings">Настройки</button>
+        <button class="tab" data-tab="parse">Разбор текста → задачи</button>
+      </div>
+      <div class="modal-body">
+        <div class="tab-panel active" id="aiPanelSettings">
+          <label class="field">
+            <span>API-ключ DeepSeek</span>
+            <input id="aiKey" type="password" placeholder="sk-…" autocomplete="off">
+          </label>
+          <p class="hint">Ключ хранится только в вашем браузере (localStorage) и никуда не отправляется, кроме API DeepSeek. Получить ключ: <b>platform.deepseek.com</b></p>
+          <div class="field-row">
+            <label class="field">
+              <span>Модель</span>
+              <select id="aiModel">
+                <option value="deepseek-chat">deepseek-chat (быстрая)</option>
+                <option value="deepseek-reasoner">deepseek-reasoner (глубокая)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Базовый URL API</span>
+              <input id="aiBaseUrl" type="text" placeholder="https://api.deepseek.com">
+            </label>
+          </div>
+          <div class="ai-row">
+            <button id="btnTestAi" class="btn btn-ai">🔌 Проверить подключение</button>
+            <span id="aiTestResult" class="muted"></span>
+          </div>
+        </div>
+        <div class="tab-panel" id="aiPanelParse">
+          <label class="field">
+            <span>Вставьте текст (письмо, протокол встречи, список дел…)</span>
+            <textarea id="aiText" rows="7" placeholder="Например: «До пятницы подготовить отчёт для клиента. Срочно: оплатить счёт за сервер. Также нужно договориться с Ивановым о встрече на следующей неделе…»"></textarea>
+          </label>
+          <label class="field">
+            <span>Папка для новых задач</span>
+            <select id="aiTargetFolder"></select>
+          </label>
+          <div class="ai-row">
+            <button id="btnAiParse" class="btn btn-ai">🔍 Извлечь задачи</button>
+          </div>
+          <div id="aiParseOutput" class="ai-output hidden">
+            <div class="ai-parse-toolbar">
+              <span>Найденные задачи (отметьте нужные):</span>
+              <button id="btnAiApply" class="btn btn-primary btn-sm">＋ Добавить отмеченные</button>
+            </div>
+            <div id="aiParseList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: команда и ответственные ===== -->
+  <div class="modal-overlay hidden" id="teamModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>👥 Команда и ответственные</h3>
+        <button class="icon-btn" data-close="teamModal">✕</button>
+      </div>
+      <div class="modal-body team-body">
+        <div class="team-col">
+          <div class="field-title-row">
+            <span>Команды</span>
+            <button id="btnAddTeam" class="btn btn-ghost btn-sm">＋ Добавить</button>
+          </div>
+          <div id="teamList" class="team-list"></div>
+        </div>
+        <div class="team-col">
+          <div class="field-title-row">
+            <span>Сотрудники</span>
+            <button id="btnAddPerson" class="btn btn-ghost btn-sm">＋ Добавить</button>
+          </div>
+          <div id="personList" class="team-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="hint">Изменения сохраняются сразу</span>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" data-close="teamModal">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: библиотека файлов ===== -->
+  <div class="modal-overlay hidden" id="fileModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>🗂 Библиотека файлов</h3>
+        <button class="icon-btn" data-close="fileModal">✕</button>
+      </div>
+      <div class="modal-body file-body">
+        <aside class="file-sidebar">
+          <div class="folders-header">
+            <span class="folders-title">Папки файлов</span>
+            <button id="btnNewFileFolder" class="icon-btn" title="Создать папку файлов">＋</button>
+          </div>
+          <div id="fileFolderTree" class="file-tree"></div>
+          <p class="hint">Файлы хранятся локально в браузере (IndexedDB) и работают без сервера.</p>
+        </aside>
+        <div class="file-main">
+          <div class="file-toolbar">
+            <button id="btnAddFiles" class="btn btn-primary btn-sm">📎 Добавить файлы</button>
+            <button id="btnMoveFiles" class="btn btn-ghost btn-sm" title="Переместить отмеченные файлы в выбранную папку">📁 Переместить →</button>
+            <select id="fileMoveTarget" class="select select-sm" title="Папка для перемещения"></select>
+            <span class="spacer"></span>
+            <input id="fileSearchInput" class="file-search" type="text" placeholder="Поиск файлов…">
+          </div>
+          <div id="fileList" class="file-list"></div>
+          <input type="file" id="filePickerInput" multiple class="hidden">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: выбрать файлы из библиотеки ===== -->
+  <div class="modal-overlay hidden" id="filePickerModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>🗂 Выбрать файлы</h3>
+        <button class="icon-btn" data-close="filePickerModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <input id="filePickerSearch" type="text" placeholder="Поиск файлов…">
+        <div id="filePickerList" class="file-picker-list"></div>
+      </div>
+      <div class="modal-footer">
+        <span class="spacer"></span>
+        <button class="btn" data-close="filePickerModal">Отмена</button>
+        <button id="btnFilePickerAdd" class="btn btn-primary">＋ Прикрепить выбранные</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: система и интеграция Windows ===== -->
+  <div class="modal-overlay hidden" id="systemModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>⚙️ Система и интеграция</h3>
+        <button class="icon-btn" data-close="systemModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="check-field">
+          <input type="checkbox" id="nativeOpenCheck">
+          <span>Открывать файлы и папки в приложениях Windows</span>
+        </label>
+        <p class="hint">При включённой интеграции файлы открываются в Word, Excel и других приложениях, папки — в Проводнике. Устанавливается один раз и не требует прав администратора.</p>
+        <div class="report-tools">
+          <button id="btnDownloadInstaller" class="btn btn-ai btn-sm">⬇️ Скачать Установить_интеграцию.bat</button>
+          <button id="btnTestIntegration" class="btn btn-ghost btn-sm">🧪 Проверить</button>
+        </div>
+        <ol class="hint" style="padding-left:18px;display:flex;flex-direction:column;gap:4px">
+          <li>Скачайте и запустите <b>Установить_интеграцию.bat</b> (двойной клик).</li>
+          <li>Подтвердите установку — появится сообщение об успехе.</li>
+          <li>Нажмите «Проверить»: должно появиться окно «Интеграция работает».</li>
+          <li>Если открытие не работает — перезапустите браузер (Windows применяет протоколы после перезапуска).</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: журнал и заметки ===== -->
+  <div class="modal-overlay hidden" id="journalModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>📝 Журнал и заметки</h3>
+        <button class="icon-btn" data-close="journalModal">✕</button>
+      </div>
+      <div class="modal-body doc-body">
+        <div class="doc-list-col" id="journalListCol">
+          <input id="journalSearch" type="text" placeholder="Поиск по заметкам…">
+          <button id="btnNewNote" class="btn btn-primary btn-wide">＋ Новая заметка</button>
+          <div id="journalList" class="doc-list"></div>
+          <p class="hint">Вставьте листинг совещания или заметки — AI DeepSeek составит резюме, протокол или превратит текст в задачи.</p>
+        </div>
+        <div class="doc-editor-col hidden" id="journalEditor">
+          <input id="jTitle" type="text" placeholder="Заголовок заметки">
+          <textarea id="jText" rows="13" placeholder="Вставьте текст: листинг совещания, звонка, свои заметки…"></textarea>
+          <input id="jTags" type="text" placeholder="Теги через запятую">
+          <div class="ai-row">
+            <button id="btnJournalSummary" class="btn btn-ai btn-sm">✨ Резюме</button>
+            <button id="btnJournalMinutes" class="btn btn-ai btn-sm">📋 Протокол</button>
+            <button id="btnJournalToTasks" class="btn btn-ai btn-sm">🎯 В задачи</button>
+          </div>
+          <div id="journalAiOut" class="ai-output hidden"></div>
+          <div class="doc-actions">
+            <button id="btnDeleteNote" class="btn btn-danger btn-sm hidden">🗑 Удалить</button>
+            <span class="spacer"></span>
+            <button id="btnJournalBack" class="btn btn-ghost btn-sm">← Назад</button>
+            <button id="btnSaveNote" class="btn btn-primary btn-sm">💾 Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: база знаний ===== -->
+  <div class="modal-overlay hidden" id="kbModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>📚 База знаний</h3>
+        <button class="icon-btn" data-close="kbModal">✕</button>
+      </div>
+      <div class="modal-body doc-body">
+        <div class="doc-list-col" id="kbListCol">
+          <input id="kbSearch" type="text" placeholder="Быстрый поиск по статьям…">
+          <button id="btnNewKb" class="btn btn-primary btn-wide">＋ Новая статья</button>
+          <div id="kbList" class="doc-list"></div>
+          <p class="hint">Поиск работает мгновенно: по названию, содержимому и тегам. AI поможет структурировать статью.</p>
+        </div>
+        <div class="doc-editor-col hidden" id="kbEditor">
+          <input id="kTitle" type="text" placeholder="Название статьи">
+          <textarea id="kContent" rows="13" placeholder="Содержимое статьи базы знаний…"></textarea>
+          <input id="kTags" type="text" placeholder="Теги через запятую (для поиска)">
+          <div class="ai-row">
+            <button id="btnKbAssist" class="btn btn-ai btn-sm">✨ Структурировать с AI</button>
+          </div>
+          <div id="kbAiOut" class="ai-output hidden"></div>
+          <div class="doc-actions">
+            <button id="btnDeleteKb" class="btn btn-danger btn-sm hidden">🗑 Удалить</button>
+            <span class="spacer"></span>
+            <button id="btnKbBack" class="btn btn-ghost btn-sm">← Назад</button>
+            <button id="btnSaveKb" class="btn btn-primary btn-sm">💾 Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="storage.js"></script>
+  <script src="app.js"></script>
+  <script src="files.js"></script>
+  <script src="ai.js"></script>
+</body>
+</html>
