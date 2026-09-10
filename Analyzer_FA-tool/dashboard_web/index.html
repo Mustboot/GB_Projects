@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DrillingLogs — Дашборд параметров бурения по глубине</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- ======================= HEADER ======================= -->
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M4 24h24M8 24V10l2-2 3 3 3-3 3 3 3-3 2 2v14"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24.5" cy="6.5" r="2" fill="currentColor" opacity="0.55"/>
+      <path d="M3 24h3m-2 4h4" stroke="currentColor" stroke-width="1.4"/>
+    </svg>
+    <div class="brand-text">
+      <h1>DrillingLogs · Дашборд параметров бурения</h1>
+      <p id="dbInfo">Загрузка базы данных…</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="btnRefresh" class="btn btn-primary" title="Загрузить данные с выбранными фильтрами">
+      <svg viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Обновить
+    </button>
+    <button id="btnPrint" class="btn" title="Печать или сохранение в PDF">
+      <svg viewBox="0 0 16 16"><path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9.5h8V14H4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      Печать / PDF
+    </button>
+    <button id="btnExcel" class="btn" title="Выгрузить выбранные данные в Excel (.xlsx)">
+      <svg viewBox="0 0 16 16"><path d="M2 1h8l4 4v10H2zM10 1v4h4M6 8l4 5M10 8L6 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      Экспорт в Excel
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ======================= SIDEBAR ======================= -->
+  <aside class="sidebar">
+    <section class="panel">
+      <div class="panel-head">
+        <span>Скважины</span>
+        <span id="wellCount" class="badge">0</span>
+      </div>
+      <div class="search-row">
+        <input id="wellSearch" type="search" placeholder="Поиск скважины…" autocomplete="off">
+      </div>
+      <div class="row-actions">
+        <button id="btnAllWells" class="mini">Все</button>
+        <button id="btnNoWells" class="mini">Ничего</button>
+      </div>
+      <ul id="wellList" class="well-list"></ul>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <span>Кривые</span>
+        <span id="curveCount" class="badge">0</span>
+      </div>
+      <div id="curveList" class="curve-list"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span>Интервал глубин, м</span></div>
+      <div class="depth-row">
+        <label>от <input id="dmin" type="number" step="10"></label>
+        <label>до <input id="dmax" type="number" step="10"></label>
+      </div>
+      <div class="row-actions">
+        <button id="btnFullRange" class="mini">Весь интервал</button>
+        <span id="rangeHint" class="hint"></span>
+      </div>
+    </section>
+
+    <button id="btnApply" class="btn btn-primary btn-wide">Применить и построить</button>
+
+    <footer class="sidebar-foot">
+      <p>Графики синхронизированы по глубине: масштаб и курсор общие для всех треков.</p>
+      <p>Колесо мыши — масштаб, двойной клик — исходный масштаб.</p>
+    </footer>
+  </aside>
+
+  <!-- ======================= MAIN ======================= -->
+  <main class="main">
+    <div class="chart-card">
+      <div class="plot" id="wrapEcd"><div id="plotEcd"></div></div>
+      <div class="plot" id="wrapDrill"><div id="plotDrill"></div></div>
+      <div class="plot" id="wrapGr"><div id="plotGr"></div></div>
+      <div class="plot" id="wrapCali"><div id="plotCali"></div></div>
+      <div class="geo-section" id="geoSection" hidden>
+        <div class="geo-head">
+          <span class="geo-title">ЛИТОЛОГИЯ ПО ПЛОТНОСТИ · RHOB</span>
+          <span class="chip"><i style="background:#f4d03f"></i>Песчаник &lt; 2.2</span>
+          <span class="chip"><i style="background:#e67e22"></i>Алевролит 2.2–2.5</span>
+          <span class="chip"><i style="background:#7f8c8d"></i>Аргиллит ≥ 2.5</span>
+        </div>
+        <div id="geoPlots"></div>
+      </div>
+      <div id="loading" class="overlay hidden">
+        <div class="spinner"></div>
+        <p id="loadingText">Загрузка данных…</p>
+      </div>
+      <div id="empty" class="overlay hidden">
+        <div class="empty-box">
+          <strong>Нет данных для отображения</strong>
+          <p>Выберите скважины и кривые слева и нажмите «Применить и построить».</p>
+        </div>
+      </div>
+    </div>
+    <div class="statusbar">
+      <span id="statusLeft">Готово</span>
+      <span id="statusRight"></span>
+    </div>
+  </main>
+</div>
+
+<!-- Print-only header -->
+<div id="printHeader" class="print-header">
+  <h1>Отчёт: параметры бурения по глубине</h1>
+  <p id="printSummary"></p>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/plotly.min.js"></script>
+<script>
+  if (typeof Plotly === 'undefined') {
+    document.write('<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>');
+  }
+</script>
+<script src="/static/app.js"></script>
+</body>
+</html>

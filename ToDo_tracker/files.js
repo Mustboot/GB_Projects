@@ -89,10 +89,16 @@
 
   /* ---------- Рендер списка файлов ---------- */
 
+  function trashedFileIds() {
+    return new Set((App.state.trash || []).filter(x => x.type === 'file').map(x => x.refId));
+  }
+
   async function renderFileList() {
     const box = document.getElementById('fileList');
     const q = (document.getElementById('fileSearchInput').value || '').trim().toLowerCase();
     let all = await loadFiles();
+    const trashed = trashedFileIds();
+    all = all.filter(f => !trashed.has(f.id));
 
     if (selectedFolderId) {
       const ids = ffDescendants(selectedFolderId);
@@ -203,13 +209,23 @@
 
   async function deleteFiles(ids) {
     if (!ids.length) return;
-    if (!confirm(`Удалить ${ids.length} файл(ов) из библиотеки? Прикреплённые к задачам ссылки останутся, но файл скачать будет нельзя.`)) return;
+    if (!confirm(`Переместить ${ids.length} файл(ов) в корзину? Файлы исчезнут из библиотеки; ссылки в задачах сохранятся и снова заработают после восстановления.`)) return;
+    const all = await loadFiles();
+    let moved = 0;
     for (const id of ids) {
-      await FileStore.del(id).catch(() => {});
+      const rec = all.find(f => f.id === id);
+      if (!rec) continue;
+      App.state.trash.push({
+        id: App.uid(), type: 'file', refId: rec.id,
+        data: { name: rec.name, size: rec.size, type: rec.type, folderId: rec.folderId || null, addedAt: rec.addedAt || Date.now() },
+        deletedAt: Date.now(),
+      });
       checkedFiles.delete(id);
+      moved++;
     }
+    App.save();
     await renderFileList();
-    App.toast('Файлы удалены', 'success');
+    App.toast(`В корзину перемещено файлов: ${moved}`, 'success');
   }
 
   async function moveChecked(targetFolderId) {
@@ -244,6 +260,8 @@
     const box = document.getElementById('filePickerList');
     const q = (document.getElementById('filePickerSearch').value || '').trim().toLowerCase();
     let all = await loadFiles();
+    const trashed = trashedFileIds();
+    all = all.filter(f => !trashed.has(f.id));
     if (q) all = all.filter(f => f.name.toLowerCase().includes(q));
     all.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
@@ -295,21 +313,26 @@
       if (del) {
         const f = fileFolders().find(x => x.id === fid);
         if (!f) return;
-        if (!confirm(`Удалить папку файлов «${f.name}»? Файлы будут перенесены в корень.`)) return;
+        if (!confirm(`Удалить папку файлов «${f.name}»? Файлы будут перенесены в корень, папка попадёт в корзину.`)) return;
         const ids = ffDescendants(f.id);
         const all = await loadFiles();
+        const trashed = trashedFileIds();
         for (const rec of all) {
-          if (ids.includes(rec.folderId)) {
+          if (ids.includes(rec.folderId) && !trashed.has(rec.id)) {
             rec.folderId = null;
             await FileStore.put(rec).catch(() => {});
           }
         }
+        const removed = fileFolders().filter(x => ids.includes(x.id));
+        removed.forEach(x => {
+          App.state.trash.push({ id: App.uid(), type: 'fileFolder', refId: x.id, data: { ...x }, deletedAt: Date.now() });
+        });
         App.state.fileFolders = fileFolders().filter(x => !ids.includes(x.id));
         if (selectedFolderId && ids.includes(selectedFolderId)) selectedFolderId = null;
         App.save();
         renderFileFolderTree();
         await renderFileList();
-        App.toast('Папка файлов удалена', 'success');
+        App.toast('Папка файлов перемещена в корзину', 'success');
         return;
       }
       selectedFolderId = fid;

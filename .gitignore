@@ -19,9 +19,12 @@ My_TelegramBots/
 # Real drilling data (keep local only)
 *.accdb
 Analyzer_FA-tool/data_import/
-Analyzer_FA-tool/_preview/
-Analyzer_FA-tool/*.xlsm
 Analyzer_FA-tool/*.exe
+
+# Cooking_mate - personal recipes and prices (keep local only)
+Cooking_mate/*.xlsx
+Cooking_mate/_backup_original/
+Cooking_mate/rebuild_workbooks.py
 
 # Large / copyrighted files
 MyTelegramBots_GitHub/files/*.pdf

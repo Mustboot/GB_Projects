@@ -39,6 +39,9 @@
         <button id="btnAI" class="btn btn-ghost btn-wide">✨ AI DeepSeek</button>
         <button id="btnJournal" class="btn btn-ghost btn-wide">📝 Журнал</button>
         <button id="btnKb" class="btn btn-ghost btn-wide">📚 База знаний</button>
+        <button id="btnGantt" class="btn btn-ghost btn-wide">📈 Гантт-чарт</button>
+        <button id="btnArchive" class="btn btn-ghost btn-wide">📦 Архив</button>
+        <button id="btnTrash" class="btn btn-ghost btn-wide">🗑 Корзина</button>
         <button id="btnExport" class="btn btn-ghost btn-wide">💾 Экспорт JSON</button>
         <button id="btnImport" class="btn btn-ghost btn-wide">📂 Импорт JSON</button>
         <button id="btnSystem" class="btn btn-ghost btn-wide">⚙️ Система</button>
@@ -95,7 +98,7 @@
         <h2 id="viewTitle">Все задачи</h2>
         <div class="list-tools">
           <span id="listCount" class="list-count"></span>
-          <button id="btnClearDone" class="btn btn-ghost btn-sm">🗑 Очистить выполненные</button>
+          <button id="btnClearDone" class="btn btn-ghost btn-sm">� Выполненные в архив</button>
         </div>
       </div>
 
@@ -137,9 +140,45 @@
               <option value="done">Выполнено</option>
             </select>
           </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Дата начала</span>
+            <input id="fStartDate" type="date">
+          </label>
           <label class="field">
             <span>Срок</span>
             <input id="fDueDate" type="date">
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Прогресс</span>
+            <div class="progress-input">
+              <input id="fProgress" type="range" min="0" max="100" step="5" value="0">
+              <span id="fProgressVal" class="muted" style="font-size:12px;min-width:42px">авто</span>
+            </div>
+          </label>
+          <label class="check-field" style="align-self:flex-end;padding-bottom:8px">
+            <input type="checkbox" id="fProgressAuto" checked>
+            <span style="font-size:12.5px;font-weight:400">авто (по подзадачам)</span>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="check-field" style="padding-bottom:8px">
+            <input type="checkbox" id="fRecurring">
+            <span>🔁 Повторяется</span>
+          </label>
+          <label class="field" style="flex-direction:row;align-items:center;gap:6px;flex:0 0 auto">
+            <span>каждые</span>
+            <input id="fRecurringEvery" type="number" min="1" max="99" value="1" style="width:70px" disabled>
+          </label>
+          <label class="field">
+            <select id="fRecurringUnit" disabled>
+              <option value="day">дней</option>
+              <option value="week">недель</option>
+              <option value="month">месяцев</option>
+            </select>
           </label>
         </div>
         <div class="field-row">
@@ -529,6 +568,78 @@
             <button id="btnKbBack" class="btn btn-ghost btn-sm">← Назад</button>
             <button id="btnSaveKb" class="btn btn-primary btn-sm">💾 Сохранить</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: корзина ===== -->
+  <div class="modal-overlay hidden" id="trashModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>🗑 Корзина <span id="trashCount" class="muted" style="font-size:12px;font-weight:400"></span></h3>
+        <button class="icon-btn" data-close="trashModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="trashList" class="doc-list" style="min-height:160px;max-height:52vh"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnEmptyTrash" class="btn btn-danger btn-sm hidden">🗑 Очистить корзину</button>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" data-close="trashModal">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: архив ===== -->
+  <div class="modal-overlay hidden" id="archiveModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>📦 Архив выполненных задач <span id="archiveCount" class="muted" style="font-size:12px;font-weight:400"></span></h3>
+        <button class="icon-btn" data-close="archiveModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <input id="archiveSearch" type="text" placeholder="Поиск по названию, проекту, команде, сотруднику…">
+        <div id="archiveList" class="doc-list" style="min-height:160px;max-height:52vh"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnClearArchive" class="btn btn-danger btn-sm hidden">🗑 Удалить весь архив</button>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" data-close="archiveModal">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Модальное окно: Гантт-чарт ===== -->
+  <div class="modal-overlay hidden" id="ganttModal">
+    <div class="modal modal-xl">
+      <div class="modal-header">
+        <h3>📈 Гантт-чарт задач</h3>
+        <button class="icon-btn" data-close="ganttModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="gantt-controls">
+          <select id="ganttFolderFilter" class="select select-sm" title="Проект"></select>
+          <select id="ganttTeamFilter" class="select select-sm" title="Команда"></select>
+          <select id="ganttPersonFilter" class="select select-sm" title="Сотрудник"></select>
+          <select id="ganttStatusFilter" class="select select-sm" title="Статусы">
+            <option value="open">Открытые</option>
+            <option value="all">Все задачи</option>
+            <option value="todo">К выполнению</option>
+            <option value="progress">В работе</option>
+            <option value="done">Выполненные</option>
+          </select>
+          <span id="ganttCount" class="muted" style="font-size:12px"></span>
+        </div>
+        <div class="gantt-legend">
+          <span><span class="legend-box"></span> задача</span>
+          <span><span class="legend-box fill"></span> прогресс выполнения</span>
+          <span><span class="legend-box overdue"></span> просрочено</span>
+          <span><span class="legend-box today"></span> сегодня</span>
+          <span class="muted" style="font-size:11px">клик по строке — открыть задачу</span>
+        </div>
+        <div class="gantt-scroll">
+          <div id="ganttChart"></div>
         </div>
       </div>
     </div>

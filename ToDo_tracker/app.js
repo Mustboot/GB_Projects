@@ -26,7 +26,7 @@ const SORT_DEFAULT_DIR = {
   title: 'asc', folder: 'asc', assignee: 'asc', team: 'asc', status: 'asc',
 };
 
-const STATE_VERSION = 3;
+const STATE_VERSION = 5;
 
 /* ---------------- Утилиты ---------------- */
 
@@ -114,6 +114,7 @@ function seedState() {
         ],
         links: [{ id: uid(), name: 'Папка с данными', url: 'data_import', kind: 'manual' }],
         createdAt: ts - 86400000 * 2, updatedAt: ts - 86400000, completedAt: null,
+        startDate: addDays(-3), progress: 45, recurring: false,
       },
       {
         id: uid(), title: 'Согласовать план работ с заказчиком', folderId: 'f1',
@@ -121,6 +122,7 @@ function seedState() {
         status: 'todo', priority: 'medium', dueDate: addDays(3), tags: ['звонок'],
         teamId: 'team2', assigneeId: 'p2',
         subtasks: [], links: [], createdAt: ts - 86400000, updatedAt: ts - 86400000, completedAt: null,
+        startDate: addDays(-1), progress: null, recurring: false,
       },
       {
         id: uid(), title: 'Обновить базу данных Access', folderId: 'f1',
@@ -129,6 +131,7 @@ function seedState() {
         teamId: null, assigneeId: null,
         subtasks: [], links: [{ id: uid(), name: 'База данных', url: 'DrillingLogs_full.accdb', kind: 'manual' }],
         createdAt: ts - 86400000 * 3, updatedAt: ts - 86400000 * 3, completedAt: null,
+        startDate: null, progress: null, recurring: true, recurringEvery: 1, recurringUnit: 'month',
       },
       {
         id: uid(), title: 'Проверить скрипт импорта LAS', folderId: 'inbox',
@@ -136,14 +139,18 @@ function seedState() {
         status: 'todo', priority: 'high', dueDate: t, tags: ['баг'],
         teamId: null, assigneeId: null,
         subtasks: [], links: [], createdAt: ts - 86400000 * 4, updatedAt: ts - 86400000 * 4, completedAt: null,
+        startDate: null, progress: null, recurring: false,
       },
       {
         id: uid(), title: 'Заполнить табель за прошлую неделю', folderId: 'f3',
         desc: '', status: 'done', priority: 'low', dueDate: null, tags: [],
         teamId: null, assigneeId: null,
         subtasks: [], links: [], createdAt: ts - 86400000 * 6, updatedAt: ts - 86400000, completedAt: ts - 86400000,
+        startDate: null, progress: null, recurring: false,
       },
     ],
+    trash: [],
+    archive: [],
     notes: [
       {
         id: uid(), title: 'Совещание по бурению — протокол',
@@ -174,7 +181,7 @@ function seedState() {
 // Обновление данных старых версий до актуальной (без потерь)
 function migrate(s) {
   const v = s.version || 1;
-  if (v >= STATE_VERSION && Array.isArray(s.notes) && Array.isArray(s.kb)) {
+  if (v >= STATE_VERSION && Array.isArray(s.notes) && Array.isArray(s.kb) && Array.isArray(s.trash) && Array.isArray(s.archive)) {
     s.version = STATE_VERSION;
     return s;
   }
@@ -184,6 +191,8 @@ function migrate(s) {
   s.fileFolders = Array.isArray(s.fileFolders) ? s.fileFolders : [];
   s.notes = Array.isArray(s.notes) ? s.notes : [];
   s.kb = Array.isArray(s.kb) ? s.kb : [];
+  s.trash = Array.isArray(s.trash) ? s.trash : [];
+  s.archive = Array.isArray(s.archive) ? s.archive : [];
   s.settings = Object.assign({ theme: 'dark', aiKey: '', aiModel: 'deepseek-chat', aiBaseUrl: 'https://api.deepseek.com', nativeOpen: true }, s.settings || {});
   s.ui = Object.assign({ filterType: 'all', folderId: null, search: '', status: 'all', priority: 'all', sort: 'priority', sortDir: 'desc', team: 'all', assignee: 'all' }, s.ui || {});
   s.tasks.forEach(t => {
@@ -193,6 +202,12 @@ function migrate(s) {
     t.subtasks = Array.isArray(t.subtasks) ? t.subtasks : [];
     t.tags = Array.isArray(t.tags) ? t.tags : [];
     t.links = Array.isArray(t.links) ? t.links.map(l => Object.assign({ kind: 'manual' }, l)) : [];
+    if (t.dueDate === undefined) t.dueDate = null;
+    if (t.progress === undefined) t.progress = null;
+    if (t.startDate === undefined) t.startDate = null;
+    if (t.recurring === undefined) t.recurring = false;
+    if (t.recurringUnit === undefined) t.recurringUnit = 'week';
+    if (t.recurringEvery === undefined) t.recurringEvery = 1;
     if (!t.desc) t.desc = '';
   });
   return s;
@@ -274,6 +289,52 @@ function personName(id) { return getPerson(id)?.name || ''; }
 
 function isOverdue(t) {
   return t.status !== 'done' && t.dueDate && t.dueDate < todayStr();
+}
+
+/* ---------------- Повторяющиеся задачи ---------------- */
+
+const RECUR_LABELS = { day: 'дн.', week: 'нед.', month: 'мес.' };
+
+function addDaysIso(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function addMonthsIso(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function advanceDateIso(iso, unit, every) {
+  if (!iso) return null;
+  if (unit === 'day') return addDaysIso(iso, every);
+  if (unit === 'month') return addMonthsIso(iso, every);
+  return addDaysIso(iso, every * 7); // week
+}
+
+// При завершении повторяющейся задачи создаём следующее повторение
+function spawnNextOccurrence(t) {
+  const next = {
+    ...t,
+    id: uid(),
+    status: 'todo',
+    completedAt: null,
+    progress: null,
+    startDate: advanceDateIso(t.startDate, t.recurringUnit, t.recurringEvery),
+    dueDate: advanceDateIso(t.dueDate, t.recurringUnit, t.recurringEvery),
+    subtasks: (t.subtasks || []).map(s => ({ ...s, id: uid(), done: false })),
+    links: (t.links || []).map(l => ({ ...l, id: uid() })),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  state.tasks.push(next);
+  toast('🔁 Создано следующее повторение задачи', 'success');
 }
 
 function getFilteredTasks() {
@@ -470,6 +531,10 @@ function taskItemHtml(t) {
   const badges = [];
   badges.push(`<span class="badge badge-p-${t.priority}" title="Приоритет: ${pr.label}">${pr.mark} ${pr.label}</span>`);
   if (progress) badges.push(`<span class="badge badge-status">▶ В работе</span>`);
+  if (t.recurring) badges.push(`<span class="badge badge-recurring" title="Повторяется: каждые ${t.recurringEvery || 1} ${RECUR_LABELS[t.recurringUnit || 'week']}">🔁 ${t.recurringEvery || 1} ${RECUR_LABELS[t.recurringUnit || 'week']}</span>`);
+  if (t.progress !== null && t.progress !== undefined && !done) {
+    badges.push(`<span class="badge badge-progress" title="Прогресс (вручную)">⏳ ${taskProgress(t)}%</span>`);
+  }
   if (t.dueDate) {
     const cls = overdue ? 'overdue' : '';
     const lbl = overdue ? 'просрочено' : (t.dueDate === todayStr() && !done ? 'сегодня' : '');
@@ -665,8 +730,19 @@ function openTaskModal(id) {
   document.getElementById('fTitle').value = t ? t.title : '';
   document.getElementById('fDesc').value = t ? t.desc : '';
   document.getElementById('fStatus').value = t ? t.status : 'todo';
+  document.getElementById('fStartDate').value = t && t.startDate ? t.startDate : '';
   document.getElementById('fDueDate').value = t && t.dueDate ? t.dueDate : '';
   document.getElementById('fTags').value = t ? t.tags.join(', ') : '';
+
+  const hasManual = !!(t && t.progress !== null && t.progress !== undefined);
+  document.getElementById('fProgressAuto').checked = !hasManual;
+  document.getElementById('fProgress').value = hasManual ? t.progress : 0;
+  updateProgressLabel();
+
+  document.getElementById('fRecurring').checked = !!(t && t.recurring);
+  document.getElementById('fRecurringEvery').value = t && t.recurringEvery ? t.recurringEvery : 1;
+  document.getElementById('fRecurringUnit').value = t && t.recurringUnit ? t.recurringUnit : 'week';
+  toggleRecurringControls();
 
   const defaultFolder = t
     ? t.folderId
@@ -691,6 +767,19 @@ function setPriorityActive(p) {
   document.querySelectorAll('#fPriority button').forEach(b => {
     b.classList.toggle('active', b.dataset.val === p);
   });
+}
+
+function updateProgressLabel() {
+  const auto = document.getElementById('fProgressAuto').checked;
+  const val = document.getElementById('fProgress').value;
+  document.getElementById('fProgressVal').textContent = auto ? 'авто' : val + '%';
+  document.getElementById('fProgress').disabled = auto;
+}
+
+function toggleRecurringControls() {
+  const on = document.getElementById('fRecurring').checked;
+  document.getElementById('fRecurringEvery').disabled = !on;
+  document.getElementById('fRecurringUnit').disabled = !on;
 }
 
 function renderSubtaskDraft() {
@@ -850,24 +939,33 @@ function saveTask() {
     folderId: document.getElementById('fFolder').value || 'inbox',
     status: document.getElementById('fStatus').value,
     priority: document.querySelector('#fPriority button.active')?.dataset.val || 'medium',
+    startDate: document.getElementById('fStartDate').value || null,
     dueDate: document.getElementById('fDueDate').value || null,
     tags: document.getElementById('fTags').value.split(',').map(x => x.trim()).filter(Boolean),
     teamId: document.getElementById('fTeam').value || null,
     assigneeId: document.getElementById('fAssignee').value || null,
+    progress: document.getElementById('fProgressAuto').checked ? null : Math.min(100, Math.max(0, +document.getElementById('fProgress').value || 0)),
+    recurring: document.getElementById('fRecurring').checked,
+    recurringEvery: Math.max(1, Math.min(99, +document.getElementById('fRecurringEvery').value || 1)),
+    recurringUnit: document.getElementById('fRecurringUnit').value || 'week',
     subtasks: subtaskDraft.filter(s => s.title.trim()),
     links: linkDraft.filter(l => l.kind === 'library' ? true : (l.name.trim() || l.url.trim())),
   };
 
   if (editingId) {
     const t = getTask(editingId);
+    const wasDone = t.status === 'done';
     Object.assign(t, payload, { updatedAt: Date.now() });
     t.completedAt = (payload.status === 'done') ? (t.completedAt || Date.now()) : null;
+    if (!wasDone && payload.status === 'done' && t.recurring) spawnNextOccurrence(t);
     toast('Задача обновлена', 'success');
   } else {
-    state.tasks.push({
+    const nt = {
       id: uid(), ...payload,
       createdAt: Date.now(), completedAt: payload.status === 'done' ? Date.now() : null,
-    });
+    };
+    state.tasks.push(nt);
+    if (payload.status === 'done' && nt.recurring) spawnNextOccurrence(nt);
     toast('Задача создана', 'success');
   }
   save();
@@ -878,12 +976,13 @@ function saveTask() {
 function deleteTask() {
   if (!editingId) return;
   const t = getTask(editingId);
-  if (!confirm(`Удалить задачу «${t.title}»?`)) return;
+  if (!confirm(`Удалить задачу «${t.title}»? Она попадёт в корзину.`)) return;
+  trashItem('task', t);
   state.tasks = state.tasks.filter(x => x.id !== editingId);
   save();
   closeModal('taskModal');
   renderAll();
-  toast('Задача удалена');
+  toast('Задача перемещена в корзину');
 }
 
 /* ---------- Окно папки ---------- */
@@ -955,11 +1054,12 @@ function deleteFolder() {
   const ids = folderAndDescendants(f.id);
   const taskCount = state.tasks.filter(t => ids.includes(t.folderId)).length;
   const msg = taskCount
-    ? `Удалить папку «${f.name}» вместе с подпапками? ${taskCount} ${plural(taskCount)} будут перенесены во «Входящие».`
-    : `Удалить папку «${f.name}»?`;
+    ? `Удалить папку «${f.name}» вместе с подпапками? ${taskCount} ${plural(taskCount)} будут перенесены во «Входящие», папки попадут в корзину.`
+    : `Удалить папку «${f.name}»? Она попадёт в корзину.`;
   if (!confirm(msg)) return;
 
   state.tasks.forEach(t => { if (ids.includes(t.folderId)) t.folderId = 'inbox'; });
+  state.folders.filter(x => ids.includes(x.id)).forEach(x => trashItem('folder', x));
   state.folders = state.folders.filter(x => !ids.includes(x.id));
   if (state.ui.filterType === 'folder' && ids.includes(state.ui.folderId)) {
     state.ui.filterType = 'all';
@@ -968,7 +1068,7 @@ function deleteFolder() {
   save();
   closeModal('folderModal');
   renderAll();
-  toast('Папка удалена');
+  toast('Папка перемещена в корзину');
 }
 
 /* ---------------- Журнал и заметки ---------------- */
@@ -1031,12 +1131,14 @@ function saveNote() {
 
 function deleteNote() {
   if (!editingNoteId) return;
-  if (!confirm('Удалить заметку?')) return;
+  const n = state.notes.find(x => x.id === editingNoteId);
+  if (!confirm('Удалить заметку? Она попадёт в корзину.')) return;
+  trashItem('note', n);
   state.notes = state.notes.filter(x => x.id !== editingNoteId);
   save();
   renderJournalList();
   showJournalEditor(false);
-  toast('Заметка удалена');
+  toast('Заметка перемещена в корзину');
 }
 
 /* ---------------- База знаний ---------------- */
@@ -1110,12 +1212,376 @@ function saveKb() {
 
 function deleteKb() {
   if (!editingKbId) return;
-  if (!confirm('Удалить статью из базы знаний?')) return;
+  const a = state.kb.find(x => x.id === editingKbId);
+  if (!confirm('Удалить статью из базы знаний? Она попадёт в корзину.')) return;
+  trashItem('kb', a);
   state.kb = state.kb.filter(x => x.id !== editingKbId);
   save();
   renderKbList();
   showKbEditor(false);
-  toast('Статья удалена');
+  toast('Статья перемещена в корзину');
+}
+
+/* ---------------- Корзина ---------------- */
+
+const TRASH_LABELS = {
+  task: 'Задача', note: 'Заметка', kb: 'Статья БЗ', folder: 'Папка проектов',
+  fileFolder: 'Папка файлов', file: 'Файл', team: 'Команда', person: 'Сотрудник',
+};
+const TRASH_ICONS = {
+  task: '☑️', note: '📝', kb: '📚', folder: '📁', fileFolder: '🗂', file: '📎', team: '👥', person: '👤',
+};
+
+function trashItem(type, data) {
+  if (!data || !data.id) return;
+  state.trash.push({ id: uid(), type, refId: data.id, data, deletedAt: Date.now() });
+}
+
+function trashName(e) {
+  const d = e.data || {};
+  if (e.type === 'task') return d.title || '';
+  if (e.type === 'file') return d.name || '';
+  if (e.type === 'note' || e.type === 'kb') return d.title || '';
+  return d.name || '';
+}
+
+function renderTrashList() {
+  const box = document.getElementById('trashList');
+  const list = state.trash.slice().sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  document.getElementById('btnEmptyTrash').classList.toggle('hidden', !list.length);
+  document.getElementById('trashCount').textContent = list.length ? `${list.length} элем.` : '';
+  if (!list.length) {
+    box.innerHTML = '<p class="muted" style="padding:12px;text-align:center">Корзина пуста 🎉</p>';
+    return;
+  }
+  box.innerHTML = list.map(e => `
+    <div class="trash-item" data-trash-id="${e.id}">
+      <span class="trash-ico">${TRASH_ICONS[e.type] || '🗑'}</span>
+      <div class="trash-info">
+        <div class="trash-name">${esc(trashName(e)) || '(без названия)'}</div>
+        <div class="trash-meta">${TRASH_LABELS[e.type] || e.type} · удалено ${new Date(e.deletedAt).toLocaleDateString('ru-RU')}</div>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost btn-sm" data-trash-restore="${e.id}" title="Восстановить">↩️</button>
+      <button class="btn btn-danger btn-sm" data-trash-del="${e.id}" title="Удалить безвозвратно">🗑</button>
+    </div>`).join('');
+}
+
+function restoreTrashItem(id) {
+  const idx = state.trash.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const e = state.trash[idx];
+  switch (e.type) {
+    case 'task': {
+      const t = { ...e.data };
+      if (getTask(t.id)) t.id = uid();
+      state.tasks.push(t);
+      break;
+    }
+    case 'note': {
+      const n = { ...e.data };
+      if (state.notes.some(x => x.id === n.id)) n.id = uid();
+      state.notes.push(n);
+      break;
+    }
+    case 'kb': {
+      const a = { ...e.data };
+      if (state.kb.some(x => x.id === a.id)) a.id = uid();
+      state.kb.push(a);
+      break;
+    }
+    case 'folder': {
+      const f = { ...e.data };
+      if (getFolder(f.id)) f.id = uid();
+      if (f.parentId && !getFolder(f.parentId)) f.parentId = null;
+      state.folders.push(f);
+      break;
+    }
+    case 'fileFolder': {
+      const f = { ...e.data };
+      if (state.fileFolders.some(x => x.id === f.id)) f.id = uid();
+      if (f.parentId && !state.fileFolders.some(x => x.id === f.parentId)) f.parentId = null;
+      state.fileFolders.push(f);
+      break;
+    }
+    case 'team': {
+      const t = { ...e.data };
+      if (getTeam(t.id)) t.id = uid();
+      state.teams.push(t);
+      break;
+    }
+    case 'person': {
+      const p = { ...e.data };
+      if (getPerson(p.id)) p.id = uid();
+      if (p.teamId && !getTeam(p.teamId)) p.teamId = null;
+      state.people.push(p);
+      break;
+    }
+    case 'file':
+      break; // файл просто возвращается в библиотеку (blob оставался в хранилище)
+  }
+  state.trash.splice(idx, 1);
+  save();
+  renderTrashList();
+  renderAll();
+  toast('Восстановлено', 'success');
+}
+
+async function deleteTrashForever(id) {
+  const idx = state.trash.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const e = state.trash[idx];
+  if (!confirm('Удалить безвозвратно?')) return;
+  cleanupRefs(e);
+  if (e.type === 'file') await FileStore.del(e.refId).catch(() => {});
+  state.trash.splice(idx, 1);
+  save();
+  renderTrashList();
+  renderAll();
+  toast('Удалено безвозвратно');
+}
+
+// При безвозвратном удалении команд/сотрудников чистим ссылки в задачах
+function cleanupRefs(e) {
+  if (e.type === 'team') state.tasks.forEach(t => { if (t.teamId === e.refId) t.teamId = null; });
+  if (e.type === 'person') state.tasks.forEach(t => { if (t.assigneeId === e.refId) t.assigneeId = null; });
+}
+
+async function emptyTrash() {
+  const n = state.trash.length;
+  if (!n) { toast('Корзина пуста'); return; }
+  if (!confirm(`Очистить корзину (${n} элем.)? Файлы будут удалены из хранилища браузера.`)) return;
+  for (const e of state.trash) {
+    cleanupRefs(e);
+    if (e.type === 'file') await FileStore.del(e.refId).catch(() => {});
+  }
+  state.trash = [];
+  save();
+  renderTrashList();
+  renderAll();
+  toast('Корзина очищена', 'success');
+}
+
+/* ---------------- Архив выполненных задач ---------------- */
+
+function archiveTask(t) {
+  state.archive.push({
+    ...t,
+    archivedAt: Date.now(),
+    // Сохраняем историю принадлежности, даже если справочники позже изменятся
+    projectName: getFolder(t.folderId)?.name || '',
+    teamName: getTeam(t.teamId)?.name || '',
+    assigneeName: personName(t.assigneeId),
+  });
+}
+
+function archiveDoneTasks() {
+  const done = state.tasks.filter(t => t.status === 'done');
+  if (!done.length) { toast('Нет выполненных задач'); return; }
+  if (!confirm(`Переместить ${done.length} выполненных задач в архив?`)) return;
+  done.forEach(archiveTask);
+  state.tasks = state.tasks.filter(t => t.status !== 'done');
+  save();
+  renderAll();
+  toast(`${done.length} ${plural(done.length)} в архиве`, 'success');
+}
+
+function renderArchiveList() {
+  const box = document.getElementById('archiveList');
+  const q = (document.getElementById('archiveSearch').value || '').trim().toLowerCase();
+  let list = state.archive.slice().sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
+  if (q) {
+    list = list.filter(a => (a.title + ' ' + (a.projectName || '') + ' ' + (a.teamName || '') + ' ' + (a.assigneeName || '')).toLowerCase().includes(q));
+  }
+  document.getElementById('btnClearArchive').classList.toggle('hidden', !list.length);
+  document.getElementById('archiveCount').textContent = list.length ? `${list.length} ${plural(list.length)}` : '';
+  if (!list.length) {
+    box.innerHTML = '<p class="muted" style="padding:12px;text-align:center">' + (q ? 'Ничего не найдено' : 'Архив пуст. Выполненные задачи попадают сюда кнопкой «Выполненные в архив».') + '</p>';
+    return;
+  }
+  box.innerHTML = list.map(a => `
+    <div class="trash-item" data-archive-id="${a.id}">
+      <span class="trash-ico">✅</span>
+      <div class="trash-info">
+        <div class="trash-name">${esc(a.title)}</div>
+        <div class="trash-meta">
+          ${a.projectName ? '📁 ' + esc(a.projectName) : ''}
+          ${a.teamName ? ' · 👥 ' + esc(a.teamName) : ''}
+          ${a.assigneeName ? ' · 👤 ' + esc(a.assigneeName) : ''}
+          · выполнено ${a.completedAt ? new Date(a.completedAt).toLocaleDateString('ru-RU') : '—'}
+        </div>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost btn-sm" data-archive-restore="${a.id}" title="Вернуть в задачи">↩️</button>
+      <button class="btn btn-danger btn-sm" data-archive-del="${a.id}" title="Удалить (в корзину)">🗑</button>
+    </div>`).join('');
+}
+
+function restoreFromArchive(id) {
+  const idx = state.archive.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const a = state.archive[idx];
+  const t = { ...a };
+  delete t.archivedAt; delete t.projectName; delete t.teamName; delete t.assigneeName;
+  if (getTask(t.id)) t.id = uid();
+  state.tasks.push(t);
+  state.archive.splice(idx, 1);
+  save();
+  renderArchiveList();
+  renderAll();
+  toast('Задача возвращена в список', 'success');
+}
+
+function archiveToTrash(id) {
+  const idx = state.archive.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const a = state.archive[idx];
+  const t = { ...a };
+  delete t.archivedAt; delete t.projectName; delete t.teamName; delete t.assigneeName;
+  trashItem('task', t);
+  state.archive.splice(idx, 1);
+  save();
+  renderArchiveList();
+  renderAll();
+  toast('Задача перемещена в корзину');
+}
+
+function clearArchive() {
+  const n = state.archive.length;
+  if (!n) { toast('Архив пуст'); return; }
+  if (!confirm(`Удалить весь архив (${n} задач)? Задачи попадут в корзину.`)) return;
+  for (const a of state.archive) {
+    const t = { ...a };
+    delete t.archivedAt; delete t.projectName; delete t.teamName; delete t.assigneeName;
+    trashItem('task', t);
+  }
+  state.archive = [];
+  save();
+  renderArchiveList();
+  renderAll();
+  toast('Архив очищен (задачи в корзине)');
+}
+
+/* ---------------- Гантт-чарт ---------------- */
+
+const ganttFilters = { folder: 'all', team: 'all', person: 'all', status: 'open' };
+
+function taskProgress(t) {
+  if (t.status === 'done') return 100;
+  if (t.progress !== null && t.progress !== undefined && +t.progress >= 0) {
+    return Math.min(100, Math.max(0, +t.progress));
+  }
+  if (t.subtasks && t.subtasks.length) {
+    return Math.round((t.subtasks.filter(s => s.done).length / t.subtasks.length) * 100);
+  }
+  if (t.status === 'progress') return 30;
+  return 0;
+}
+
+function ganttTasks() {
+  let list = state.tasks.slice();
+  if (ganttFilters.status === 'open') list = list.filter(t => t.status !== 'done');
+  else if (ganttFilters.status !== 'all') list = list.filter(t => t.status === ganttFilters.status);
+  if (ganttFilters.folder !== 'all') {
+    const ids = folderAndDescendants(ganttFilters.folder);
+    list = list.filter(t => ids.includes(t.folderId));
+  }
+  if (ganttFilters.team !== 'all') list = list.filter(t => t.teamId === ganttFilters.team);
+  if (ganttFilters.person !== 'all') list = list.filter(t => t.assigneeId === ganttFilters.person);
+  // Только задачи с датами (создание или срок)
+  return list
+    .filter(t => t.dueDate || t.startDate || t.createdAt)
+    .map(t => {
+      const start = t.startDate ? new Date(t.startDate + 'T00:00:00') : new Date(t.createdAt || Date.now());
+      start.setHours(0, 0, 0, 0);
+      const end = t.dueDate ? new Date(t.dueDate + 'T00:00:00') : new Date(start.getTime() + 86400000);
+      return { ...t, _start: start, _end: end };
+    })
+    .sort((a, b) => a._start - b._start || (PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority]));
+}
+
+function renderGantt() {
+  const tasks = ganttTasks();
+  document.getElementById('ganttCount').textContent = tasks.length ? `${tasks.length} ${plural(tasks.length)}` : 'нет задач с датами';
+
+  const wrap = document.getElementById('ganttChart');
+  if (!tasks.length) {
+    wrap.innerHTML = '<p class="muted" style="padding:16px;text-align:center">Нет задач с датами для диаграммы</p>';
+    return;
+  }
+
+  // Шкала времени
+  let min = new Date(Math.min(...tasks.map(t => t._start.getTime())));
+  let max = new Date(Math.max(...tasks.map(t => t._end.getTime())));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (today > max) max = new Date(today.getTime() + 3 * 86400000);
+  if (min > today) min = new Date(today.getTime() - 2 * 86400000);
+  const totalDays = Math.max(7, Math.round((max - min) / 86400000) + 1);
+  const step = totalDays <= 14 ? 1 : totalDays <= 60 ? 7 : 14;
+  const dayW = 100 / totalDays;
+  const pos = (d) => Math.max(0, (d - min) / 86400000) * dayW;
+
+  // Шапка шкалы
+  const cells = [];
+  for (let d = 0; d < totalDays; d += step) {
+    const date = new Date(min.getTime() + d * 86400000);
+    const label = date.toLocaleDateString('ru-RU', step >= 7 ? { day: 'numeric', month: 'short' } : { day: 'numeric' });
+    cells.push(`<div class="gantt-cell" style="flex:${step * dayW} 0 0"><span>${label}</span></div>`);
+  }
+
+  const rows = tasks.map(t => {
+    const left = pos(t._start);
+    const width = Math.max(pos(t._end) - left, dayW * 0.5);
+    const pct = taskProgress(t);
+    const overdue = t.status !== 'done' && t.dueDate && t.dueDate < todayStr();
+    const done = t.status === 'done';
+    const folder = getFolder(t.folderId);
+    const tooltip = [
+      t.title,
+      `Статус: ${STATUSES[t.status].label}`,
+      `Приоритет: ${PRIORITIES[t.priority].label}`,
+      folder ? `Проект: ${folder.name}` : '',
+      `Прогресс: ${pct}%`,
+      t.startDate ? `Начало: ${fmtDate(t.startDate)}` : '',
+      t.dueDate ? `Срок: ${fmtDate(t.dueDate)}` : 'Срок: не задан',
+      t.recurring ? `🔁 повторяется: каждые ${t.recurringEvery || 1} ${RECUR_LABELS[t.recurringUnit || 'week']}` : '',
+    ].filter(Boolean).join('\n');
+    return `
+      <div class="gantt-row" data-gantt-task="${t.id}">
+        <div class="gantt-label" title="${esc(t.title)}">
+          <span class="badge badge-p-${t.priority}">${PRIORITIES[t.priority].mark}</span>
+          <span class="gantt-title">${esc(t.title)}</span>
+        </div>
+        <div class="gantt-track">
+          <div class="gantt-bar ${done ? 'done' : ''} ${overdue ? 'overdue' : ''}" style="left:${left}%;width:${width}%" title="${esc(tooltip)}">
+            <div class="gantt-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const todayLeft = pos(today);
+  wrap.innerHTML = `
+    <div class="gantt-header-row">
+      <div class="gantt-label gantt-corner">Задача</div>
+      <div class="gantt-track">${cells.join('')}</div>
+    </div>
+    <div class="gantt-body">
+      ${rows}
+      <div class="gantt-today-line" style="left:calc(280px + ${todayLeft}%)" title="Сегодня"></div>
+    </div>`;
+}
+
+function fillGanttFilters() {
+  const f = document.getElementById('ganttFolderFilter');
+  const t = document.getElementById('ganttTeamFilter');
+  const p = document.getElementById('ganttPersonFilter');
+  f.innerHTML = '<option value="all">Все проекты</option>' + folderOptionsHtml(ganttFilters.folder === 'all' ? null : ganttFilters.folder);
+  t.innerHTML = '<option value="all">Все команды</option>' + state.teams.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  p.innerHTML = '<option value="all">Все сотрудники</option>' + state.people.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  f.value = ganttFilters.folder;
+  t.value = ganttFilters.team;
+  p.value = ganttFilters.person;
 }
 
 /* ---------------- Команда и ответственные ---------------- */
@@ -1183,13 +1649,14 @@ function bindTeamManagerEvents() {
   document.getElementById('teamList').addEventListener('click', (e) => {
     const id = e.target.dataset.teamDel;
     if (!id) return;
-    if (!confirm('Удалить команду? Сотрудники останутся без команды.')) return;
+    const team = getTeam(id);
+    if (!confirm(`Удалить команду «${team ? team.name : ''}»? Она попадёт в корзину, задачи сохранят ссылку на неё.`)) return;
+    trashItem('team', team);
     state.teams = state.teams.filter(x => x.id !== id);
-    state.people.forEach(p => { if (p.teamId === id) p.teamId = null; });
-    state.tasks.forEach(t => { if (t.teamId === id) t.teamId = null; });
     save();
     renderTeamManager();
     renderAll();
+    toast('Команда перемещена в корзину');
   });
 
   document.getElementById('personList').addEventListener('input', (e) => {
@@ -1210,12 +1677,14 @@ function bindTeamManagerEvents() {
   document.getElementById('personList').addEventListener('click', (e) => {
     const id = e.target.dataset.personDel;
     if (!id) return;
-    if (!confirm('Удалить сотрудника? Задачи останутся без ответственного.')) return;
+    const p = getPerson(id);
+    if (!confirm(`Удалить сотрудника «${p ? p.name : ''}»? Он попадёт в корзину, задачи сохранят ссылку на него.`)) return;
+    trashItem('person', p);
     state.people = state.people.filter(x => x.id !== id);
-    state.tasks.forEach(t => { if (t.assigneeId === id) t.assigneeId = null; });
     save();
     renderTeamManager();
     renderAll();
+    toast('Сотрудник перемещён в корзину');
   });
 }
 
@@ -1719,6 +2188,18 @@ async function importData(file) {
       kbAdded++;
     }
 
+    // --- Архив и корзина ---
+    let archiveAdded = 0;
+    for (const a of (s.archive || [])) {
+      if (!a.id || state.archive.some(x => x.id === a.id)) continue;
+      state.archive.push(a);
+      archiveAdded++;
+    }
+    for (const t of (s.trash || [])) {
+      if (!t.id || state.trash.some(x => x.id === t.id)) continue;
+      state.trash.push({ ...t, deletedAt: t.deletedAt || Date.now() });
+    }
+
     save();
     renderAll();
 
@@ -1739,7 +2220,7 @@ async function importData(file) {
       }
     }
 
-    toast(`Импортировано: задач — ${tasksAdded}, папок — ${foldersAdded}, заметок — ${notesAdded}, статей БЗ — ${kbAdded}, файлов — ${filesAdded}`, 'success');
+    toast(`Импортировано: задач — ${tasksAdded}, папок — ${foldersAdded}, заметок — ${notesAdded}, статей БЗ — ${kbAdded}, архива — ${archiveAdded}, файлов — ${filesAdded}`, 'success');
   } catch (e) {
     console.warn(e);
     toast('Ошибка импорта: файл повреждён или не является резервной копией', 'error');
@@ -1829,8 +2310,10 @@ function bindEvents() {
 
     if (doneBtn) {
       const t = getTask(id);
-      t.status = t.status === 'done' ? 'todo' : 'done';
+      const wasDone = t.status === 'done';
+      t.status = wasDone ? 'todo' : 'done';
       t.completedAt = t.status === 'done' ? Date.now() : null;
+      if (!wasDone && t.status === 'done' && t.recurring) spawnNextOccurrence(t);
       save();
       renderAll();
     } else if (startBtn) {
@@ -1900,6 +2383,9 @@ function bindEvents() {
     const btn = e.target.closest('button[data-val]');
     if (btn) setPriorityActive(btn.dataset.val);
   });
+  document.getElementById('fProgress').addEventListener('input', updateProgressLabel);
+  document.getElementById('fProgressAuto').addEventListener('change', updateProgressLabel);
+  document.getElementById('fRecurring').addEventListener('change', toggleRecurringControls);
   document.getElementById('btnAddSubtask').addEventListener('click', () => {
     subtaskDraft.push({ id: uid(), title: '', done: false });
     renderSubtaskDraft();
@@ -2047,15 +2533,65 @@ function bindEvents() {
   bindTabs('reportTabs');
   bindTabs('aiTabs');
 
-  // Очистить выполненные
-  document.getElementById('btnClearDone').addEventListener('click', () => {
-    const n = state.tasks.filter(t => t.status === 'done').length;
-    if (!n) { toast('Нет выполненных задач'); return; }
-    if (!confirm(`Удалить ${n} выполненных задач?`)) return;
-    state.tasks = state.tasks.filter(t => t.status !== 'done');
-    save();
-    renderAll();
-    toast('Выполненные задачи удалены', 'success');
+  // Выполненные в архив
+  document.getElementById('btnClearDone').addEventListener('click', archiveDoneTasks);
+
+  // Корзина
+  document.getElementById('btnTrash').addEventListener('click', () => {
+    renderTrashList();
+    openModal('trashModal');
+  });
+  document.getElementById('trashList').addEventListener('click', (e) => {
+    const restore = e.target.closest('[data-trash-restore]');
+    const del = e.target.closest('[data-trash-del]');
+    if (restore) { restoreTrashItem(restore.dataset.trashRestore); return; }
+    if (del) deleteTrashForever(del.dataset.trashDel);
+  });
+  document.getElementById('btnEmptyTrash').addEventListener('click', emptyTrash);
+
+  // Архив
+  document.getElementById('btnArchive').addEventListener('click', () => {
+    document.getElementById('archiveSearch').value = '';
+    renderArchiveList();
+    openModal('archiveModal');
+  });
+  document.getElementById('archiveSearch').addEventListener('input', renderArchiveList);
+  document.getElementById('archiveList').addEventListener('click', (e) => {
+    const restore = e.target.closest('[data-archive-restore]');
+    const del = e.target.closest('[data-archive-del]');
+    if (restore) { restoreFromArchive(restore.dataset.archiveRestore); return; }
+    if (del) archiveToTrash(del.dataset.archiveDel);
+  });
+  document.getElementById('btnClearArchive').addEventListener('click', clearArchive);
+
+  // Гантт-чарт
+  document.getElementById('btnGantt').addEventListener('click', () => {
+    fillGanttFilters();
+    renderGantt();
+    openModal('ganttModal');
+  });
+  document.getElementById('ganttFolderFilter').addEventListener('change', (e) => {
+    ganttFilters.folder = e.target.value;
+    renderGantt();
+  });
+  document.getElementById('ganttTeamFilter').addEventListener('change', (e) => {
+    ganttFilters.team = e.target.value;
+    renderGantt();
+  });
+  document.getElementById('ganttPersonFilter').addEventListener('change', (e) => {
+    ganttFilters.person = e.target.value;
+    renderGantt();
+  });
+  document.getElementById('ganttStatusFilter').addEventListener('change', (e) => {
+    ganttFilters.status = e.target.value;
+    renderGantt();
+  });
+  document.getElementById('ganttChart').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-gantt-task]');
+    if (row) {
+      closeModal('ganttModal');
+      openTaskModal(row.dataset.ganttTask);
+    }
   });
 
   // Экспорт / импорт
@@ -2231,6 +2767,7 @@ window.App = {
   },
   getFolderOptionsHtml: (selectedId) => folderOptionsHtml(selectedId),
   openAiSettings() {
+    closeModal('reportModal');
     openModal('aiModal');
     const tab = document.querySelector('#aiTabs .tab[data-tab="settings"]');
     if (tab) tab.click();
